@@ -27,27 +27,43 @@ class_labels = ['piel-normal', 'lunar', 'melanoma', 'acne']
 
 async def diagnosticar(img_path: str) -> dict:
     # Cargar y preprocesar la imagen
-    img = image.load_img(img_path, target_size=(150, 150))  # Redimensionar la imagen al tamaño esperado por el modelo
-    x = image.img_to_array(img)  # Convertir la imagen a un array numpy
+    img = image.load_img(img_path, target_size=(150, 150))  # Redimensionar al tamaño esperado
+    x = image.img_to_array(img)  # Convertir a un array numpy
     x = np.expand_dims(x, axis=0)  # Añadir la dimensión del lote
-    x = x / 255.0  # Normalizar la imagen dividiendo por 255
+    x = x / 255.0  # Normalizar dividiendo por 255
 
     # Realizar la predicción
-    predictions = model.predict(x)
+    predictions = model.predict(x)[0]  # Obtenemos las probabilidades por clase
 
-    # Obtener el índice de la clase con mayor probabilidad
-    predicted_class_index = np.argmax(predictions[0])
-    predicted_class_label = class_labels[predicted_class_index]
+    # Ordenar las probabilidades y sus índices de mayor a menor
+    sorted_indices = np.argsort(predictions)[::-1]  # Índices ordenados en orden descendente
+    sorted_labels = [class_labels[i] for i in sorted_indices]  # Etiquetas ordenadas
+    sorted_probabilities = [predictions[i] * 100 for i in sorted_indices]  # Probabilidades en porcentaje
 
-    # Obtener la probabilidad de la clase predicha
-    predicted_probability = predictions[0][predicted_class_index] * 100  # Convertir a porcentaje
+    # Diagnóstico inicial (primera clase)
+    primary_diagnosis = sorted_labels[0]
+    primary_probability = sorted_probabilities[0]
 
-    # Retornar el nombre de la clase predicha y su probabilidad
+    # Verificar si la probabilidad de melanoma está por debajo del umbral del 80%
+    if primary_diagnosis == "melanoma" and primary_probability < 80:
+        # Cambiar el diagnóstico al segundo más probable
+        secondary_diagnosis = sorted_labels[1]
+        secondary_probability = sorted_probabilities[1]
+        return {
+            "diagnosis": secondary_diagnosis,
+            "probability": f"{secondary_probability:.2f}%",
+            "original_diagnosis": primary_diagnosis,
+            "original_probability": f"{primary_probability:.2f}%",
+            "all_probabilities": {class_labels[i]: f"{predictions[i] * 100:.2f}%" for i in range(len(class_labels))}
+        }
+
+    # Si no aplica el cambio, retornar el diagnóstico principal
     return {
-        "diagnosis": predicted_class_label,
-        "probability": f"{predicted_probability:.2f}%",  # Formato de porcentaje con dos decimales
-        "all_probabilities": {class_labels[i]: f"{predictions[0][i] * 100:.2f}%" for i in range(len(class_labels))}
+        "diagnosis": primary_diagnosis,
+        "probability": f"{primary_probability:.2f}%",
+        "all_probabilities": {class_labels[i]: f"{predictions[i] * 100:.2f}%" for i in range(len(class_labels))}
     }
+
 
 @app.post("/")
 async def create_upload_file(files: List[UploadFile] = File(..., description='Subir imágenes para diagnóstico')):
