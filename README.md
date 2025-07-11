@@ -3,5 +3,6 @@
 3. cd env/Scripts
 4. activate
 5. cd ../..
-6. pip install -r requirements.txt
-7. Run Code
+6. cd app
+7. pip install -r requirements.txt
+8. Run Code
